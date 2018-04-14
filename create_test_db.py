@@ -40,7 +40,7 @@ def main():
 
     # parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--remove-existing', required=False, action='store_true',
+    parser.add_argument('--force', required=False, action='store_true',
                         help='remove the target database if it exists already')
     parser.add_argument('--source-db', required=True, action='store', help='source database')
     parser.add_argument('--source-host', required=True, action='store', help='source host')
@@ -119,7 +119,7 @@ def main():
                      '-P', str(args.target_port),
                      '-u', args.target_username,
                      '-p{}'.format(args.target_password)]
-    if args.remove_existing:
+    if args.force:
         print('Remove existing test database...')
         remove_db_process = subprocess.run(mysql_command,
                                            stderr=subprocess.PIPE,

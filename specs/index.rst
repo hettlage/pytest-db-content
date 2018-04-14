@@ -56,21 +56,21 @@ The `create-test-db` command creates a new MySQL database and adds the table str
 
 The command has the following command line options.
 
-===================  ============================================  =========
-Option               Description                                   Default  
-===================  ============================================  =========
---remove-existing    Remove the target db if it exists already     False    
---source-host        Host server for the source database         
---source-port        Port for the source database                  3306     
---source-db          Source database                             
---source-username    Username for accessing the source database  
---source-password    Password for accessing the source database  
---target-host        Host server for the created database        
---target-port        Port for the created database                 3306     
---target-db          Created database                            
---target-username    Username for accessing the target database  
---target-password    Password for accessing the target database  
-===================  ============================================  =========
+===================  ===============================================  =========
+Option               Description                                      Default  
+===================  ===============================================  =========
+--force              Remove the test database if it exists already    False    
+--source-host        Host server for the source database            
+--source-port        Port for the source database                     3306     
+--source-db          Source database                                
+--source-username    Username for accessing the source database     
+--source-password    Password for accessing the source database     
+--target-host        Host server for the created database           
+--target-port        Port for the created database                    3306     
+--target-db          Created test database                          
+--target-username    Username for accessing the test database       
+--target-password    Password for accessing the test database       
+===================  ===============================================  =========
 
 The name of the target database must contain the string `__TEST__`. It is assumed that UTF-8 is used as the encoding.
 
