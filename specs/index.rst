@@ -31,6 +31,8 @@ The database name must include the string `__TEST__`. This requirement is made i
 
 Both the `addrow` and `cleantable` fixture use the `testdb` fixture, so there usually should be no need to explicitly include it in the tests of a project.
 
+The database URI is assigned as the fixture value.
+
 addrow
 ++++++
 
@@ -79,7 +81,7 @@ Tests
 
 The plugin must
 
-* Expose a `testdb` and an `addrow` fixture.
+* Expose a `testdb`, `addrow` and `cleantable` fixture.
 * Add a command line option group with an option `--db-uri`.
 * Raise an error if the `--db-uri` option value does not contain the string `__TEST__`.
 
