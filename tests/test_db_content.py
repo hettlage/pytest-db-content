@@ -1,64 +1,59 @@
-# -*- coding: utf-8 -*-
+import pytest
 
 
-def test_bar_fixture(testdir):
-    """Make sure that pytest accepts our fixture."""
+def test_testdb_available(testdir, testdb):
+    """pytest makes the testdb fixture available, and its value is the database URI."""
 
-    # create a temporary pytest test module
-    testdir.makepyfile("""
-        def test_sth(bar):
-            assert bar == "europython2015"
-    """)
-
-    # run pytest with the following cmd args
-    result = testdir.runpytest(
-        '--foo=europython2015',
-        '-v'
-    )
-
-    # fnmatch_lines does an assertion internally
-    result.stdout.fnmatch_lines([
-        '*::test_sth PASSED*',
-    ])
-
-    # make sure that that we get a '0' exit code for the testsuite
-    assert result.ret == 0
-
-
-def test_help_message(testdir):
-    result = testdir.runpytest(
-        '--help',
-    )
-    # fnmatch_lines does an assertion internally
-    result.stdout.fnmatch_lines([
-        'db-content:',
-        '*--foo=DEST_FOO*Set the value for the fixture "bar".',
-    ])
-
-
-def test_hello_ini_setting(testdir):
-    testdir.makeini("""
-        [pytest]
-        HELLO = world
-    """)
+    db_uri = 'whatever'
 
     testdir.makepyfile("""
-        import pytest
+    def test_testdb(testdb):
+        assert testdb == '{db_uri}'
+    """.format(db_uri=db_uri))
 
-        @pytest.fixture
-        def hello(request):
-            return request.config.getini('HELLO')
+    result = testdir.runpytest('--db-uri={db_uri}'.format(db_uri=db_uri))
 
-        def test_hello_world(hello):
-            assert hello == 'world'
+    result.assert_outcomes(passed=1)
+
+
+def test_addrow_available(testdir, addrow):
+    """pytest makes the addrow fixture available, and its value is a function."""
+
+    testdir.makepyfile("""
+    def test_addrow(addrow):
+        assert callable(addrow)
     """)
 
-    result = testdir.runpytest('-v')
+    result = testdir.runpytest('--db-uri="..."')
 
-    # fnmatch_lines does an assertion internally
-    result.stdout.fnmatch_lines([
-        '*::test_hello_world PASSED*',
+    result.assert_outcomes(passed=1)
+
+
+def test_cleantable_available(testdir, cleantable):
+    """pytest makes the addrow fixture available, and its value is a function."""
+
+    testdir.makepyfile("""
+    def test_cleantable(cleantable):
+        assert callable(cleantable)
+    """)
+
+    result = testdir.runpytest('--db-uri="..."')
+
+    result.assert_outcomes(passed=1)
+
+
+def test_option_required(testdir):
+    """pytest must be called with the --db-uri option if the testdb fixture is used."""
+
+    testdir.makepyfile("""
+    def test_testdb_used(testdb):
+        assert True
+    """)
+
+    result = testdir.runpytest()
+
+    result.stderr.fnmatch_lines([
+        'E*called with the --db-uri option*'
     ])
 
-    # make sure that that we get a '0' exit code for the testsuite
-    assert result.ret == 0
+    result.assert_outcomes(error=1)

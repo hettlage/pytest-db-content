@@ -31,6 +31,8 @@ The database name must include the string `__TEST__`. This requirement is made i
 
 Both the `addrow` and `cleantable` fixture use the `testdb` fixture, so there usually should be no need to explicitly include it in the tests of a project.
 
+The database URI is assigned as the fixture value.
+
 addrow
 ++++++
 
@@ -56,25 +58,30 @@ The `create-test-db` command creates a new MySQL database and adds the table str
 
 The command has the following command line options.
 
-===============  ======================================  =========
-Option           Description                             Default
-===============  ======================================  =========
---source-host    Host server for the source database
---source-port    Port for the source database            3306
---source-db      Source database
---target-host    Host server for the created database
---target-port    Port for the created database           3306
---target-db      Created database
-===============  ======================================  =========
+===================  ===============================================  =========
+Option               Description                                      Default  
+===================  ===============================================  =========
+--force              Remove the test database if it exists already    False    
+--source-host        Host server for the source database            
+--source-port        Port for the source database                     3306     
+--source-db          Source database                                
+--source-username    Username for accessing the source database     
+--source-password    Password for accessing the source database     
+--target-host        Host server for the created database           
+--target-port        Port for the created database                    3306     
+--target-db          Created test database                          
+--target-username    Username for accessing the test database       
+--target-password    Password for accessing the test database       
+===================  ===============================================  =========
 
-The name of the target database must contain the string `__TEST__`.
+The name of the target database must contain the string `__TEST__`. It is assumed that UTF-8 is used as the encoding.
 
 Tests
 -----
 
 The plugin must
 
-* Expose a `testdb` and an `addrow` fixture.
+* Expose a `testdb`, `addrow` and `cleantable` fixture.
 * Add a command line option group with an option `--db-uri`.
 * Raise an error if the `--db-uri` option value does not contain the string `__TEST__`.
 
