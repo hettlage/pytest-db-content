@@ -6,16 +6,29 @@ import pytest
 def pytest_addoption(parser):
     group = parser.getgroup('db-content')
     group.addoption(
-        '--foo',
+        '--db-uri',
         action='store',
-        dest='dest_foo',
-        default='2018',
-        help='Set the value for the fixture "bar".'
+        dest='db_uri',
+        help='URI of the test database, in a format SQLAlchemy understands'
     )
 
-    parser.addini('HELLO', 'Dummy pytest.ini setting')
+
+@pytest.fixture()
+def testdb(pytestconfig):
+    yield pytestconfig.getoption('db_uri')
 
 
-@pytest.fixture
-def bar(request):
-    return request.config.option.dest_foo
+@pytest.fixture()
+def addrow():
+    def _addrow():
+        return '42'
+
+    yield _addrow
+
+
+@pytest.fixture()
+def cleantable():
+    def _cleantable():
+        return '42'
+
+    yield _cleantable
