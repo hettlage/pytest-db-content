@@ -2,7 +2,6 @@ import argparse
 import re
 import subprocess
 import sys
-import tempfile
 import MySQLdb
 
 TEST_DB_IDENTIFIER = '__TEST__'
