@@ -10,11 +10,11 @@ pytest-db-content
 create-test-db
 --------------
 
-As its name suggests, `create-test-db` is a script for creating a test database. It can only handle MySQL databases. Whikle (depending on your use case) it may be of help, it is not necessary to use it with the `pytest-db-content` plugin. You may generate your test database any way you like.
+As its name suggests, `create-test-db` is a script for creating a test database. It can only handle MySQL databases. While (depending on your use case) it may be of help, it is not necessary to use it with the `pytest-db-content` plugin. You may generate your test database any way you like.
 
 .. warning::
 
-   The script does npt try to cover all possible edge cases. So if your database contains names that include non-ASCII characters, spaces or the like, it may or may not work as expected. Do not use this script for generating a database you might want to use in production.
+   The script does not try to cover all possible edge cases. So if your database contains names that include non-ASCII characters, spaces or the like, it may or may not work as expected. Do not use this script for generating a database you might want to use in production.
 
 If you have installed `pytest-db-content`, the script should be available as a shell command. It accepts the following command line options.
 
@@ -52,4 +52,4 @@ There is no need to choose an administrator as the user for the test database; b
 
 `create-test-db` is opinionated when it comes to the name of the test database and requires that it contains the string `__TEST__`. This is to ensure that you don't accidentally replace a live database.
 
-The script first exports the specified source database and then cleans the exported SQL by removing all `DEFINER` clauses and dropping all the foreign keys. The former is done as the definers may not exist as database users in the target database. The latter simplifies adding entries to thre database and ensures that SQLAlchemy automapping will work.
+The script first exports the specified source database and then cleans the exported SQL by removing all `DEFINER` clauses and dropping all the foreign keys. The former is done as the definers may not exist as database users in the target database. The latter simplifies adding entries to the database and ensures that SQLAlchemy automapping will work.
