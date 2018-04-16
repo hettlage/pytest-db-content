@@ -27,7 +27,7 @@ The `testdb` fixture, which is session scoped, creates a database connection and
 
 The database URI must be provided as a command line option, `--db-uri`, and it must have a format understood by SQLAlchemy.
 
-The database name must include the string `__TEST__`. This requirement is made in order to avoid connecting to a production database. A meaningful error must be raised if the databasename does not meet this condition.
+The database URI must include the string `__TEST__`. This requirement is made in order to avoid connecting to a production database. A meaningful error must be raised if the databasename does not meet this condition.
 
 Both the `addrow` and `cleantable` fixture use the `testdb` fixture, so there usually should be no need to explicitly include it in the tests of a project.
 
