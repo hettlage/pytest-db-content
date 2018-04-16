@@ -42,7 +42,7 @@ The signature of the function is as follows::
 
     addrow(table_name, **kwargs)
 
-`table_name` is a string and must be a valid table name. The key word arguments must be column names and values for the table. The spelling must match exactly that of the column names in the dabase.
+`table_name` is a string and must be a valid table name. The key word arguments must be column names and values for the table. The spelling must match exactly that of the column names in the database.
 
 A meaningful error must be raised if an invalid tablename or column name is used, or if a column value is invalid.
 
@@ -113,7 +113,7 @@ This plugin is realised as a pip-installable pytest plugin. The database access 
 testdb
 ++++++
 
-The testdb fixture opens the database connection and then uses automapping to create SQLAlchemy classes. These classes are then used to drop any existing table rows. All table rows are dropped again at the ebnd of the fixture.
+The testdb fixture opens the database connection and then uses automapping to create SQLAlchemy classes. These classes are then used to drop any existing table rows. All table rows are dropped again at the end of the fixture.
 
 addrow
 ++++++
