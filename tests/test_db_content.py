@@ -18,10 +18,10 @@ def test_help_message(testdir):
 def test_require_db_uri(testdir):
     """The testdb fixture requires the --db-uri option"""
 
-    testdir.makepyfile("""
+    testdir.makepyfile('''
     def test_testdb(testdb):
         assert True
-    """)
+    ''')
 
     result = testdir.runpytest()
 
@@ -34,47 +34,26 @@ def test_require_db_uri(testdir):
 # testdb fixture
 
 
-def test_testdb_available(testdir, tmpdir, dboption, sqlitedb):
-    """pytest makes the testdb fixture available, and its value is the database URI."""
+def test_testdb_available(testdir, dboption):
+    """pytest makes the testdb fixture available, and it has a non-null value."""
 
-    testdir.makepyfile("""
+    testdir.makepyfile('''
     def test_testdb(testdb):
-        assert testdb == '{db_uri}'
-    """.format(db_uri=sqlitedb))
+        assert testdb is not None
+    ''')
 
     result = testdir.runpytest(dboption)
 
     result.assert_outcomes(passed=1)
 
 
-def test_testdb_starts_from_clean_slate(testdir, populate, dboption, sqlitepath):
-    """The testdb fixture removes all table rows."""
-
-    populate()
-    assert _row_count(sqlitepath, 'user') > 0
-    assert _row_count(sqlitepath, 'Tasks') > 0
-
-    testdir.makepyfile('''
-    def test_testdb(testdb):
-        assert True
-    ''')
-
-    result = testdir.runpytest(dboption)
-
-    print(result.stdout.str())
-    print(result.stderr.str())
-
-    assert _row_count(sqlitepath, 'user') == 0
-    assert _row_count(sqlitepath, 'Tasks') == 0
-
-
 def test_db_uri_must_include_test(testdir):
     """The --db-uri option must include the string '__TEST__'."""
 
-    testdir.makepyfile("""
+    testdir.makepyfile('''
     def test_correct_db_uri(testdb):
         assert True
-    """)
+    ''')
 
     result = testdir.runpytest('--db-uri=sqlite:////some/path/observations.sqlite')
 
@@ -101,47 +80,334 @@ def test_error_for_invalid_db_uri(testdir):
     result.assert_outcomes(error=1)
 
 
-def test_addrow_available(testdir):
-    """pytest makes the addrow fixture available, and its value is a function."""
+def test_test_db_has_database_uri(testdir, dboption, sqlitedb):
+    """The test_db fixture has a database_uri field with the database URI."""
 
-    testdir.makepyfile("""
-    def test_addrow(addrow):
-        assert callable(addrow)
-    """)
+    testdir.makepyfile('''
+    def test_testdb(testdb):
+        assert testdb.database_uri == '{database_uri}'
+    '''.format(database_uri=sqlitedb))
 
-    result = testdir.runpytest('--db-uri="..."')
-
-    result.assert_outcomes(passed=1)
-
-
-def test_cleantable_available(testdir):
-    """pytest makes the addrow fixture available, and its value is a function."""
-
-    testdir.makepyfile("""
-    def test_cleantable(cleantable):
-        assert callable(cleantable)
-    """)
-
-    result = testdir.runpytest('--db-uri="..."')
+    result = testdir.runpytest(dboption)
 
     result.assert_outcomes(passed=1)
 
 
-def test_option_required(testdir):
-    """pytest must be called with the --db-uri option if the testdb fixture is used."""
+def test_fetch_all_invalid_table_name(testdir, dboption):
+    """An error is raised if fetch_all is called with an invalid table name. """
 
-    testdir.makepyfile("""
-    def test_testdb_used(testdb):
-        assert True
-    """)
+    testdir.makepyfile('''
+    def test_invalid_table_name(testdb):
+        testdb.fetch_all('c56tyb')
+    ''')
 
-    result = testdir.runpytest()
+    result = testdir.runpytest(dboption)
 
-    result.stderr.fnmatch_lines([
-        'E*called with the --db-uri option*'
+    result.stdout.fnmatch_lines([
+        'E*c56tyb is not a valid table name*'
     ])
+    result.assert_outcomes(failed=1)
 
-    result.assert_outcomes(error=1)
+
+def test_fetch_all_returns_rows(testdir, dboption, sqlitepath):
+    """TestDatabase.fetchAll returns all the rows of a table."""
+
+    testdir.makepyfile("""
+    from hypothesis import given
+    import hypothesis.strategies as s
+    import sqlite3
+    
+    
+    @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
+    def test_user_content(values, testdb):
+        # add unique id to Hypothesis-generated values
+        inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
+    
+        connection = sqlite3.connect('{path}')
+        cursor = connection.cursor()
+    
+        # delete any rows (just in case)
+        cursor.execute('DELETE FROM user')
+        cursor.execute('DELETE FROM Tasks')
+        connection.commit()
+    
+        # add the Hypothesis generated data to the user table
+        for row in inserted_rows:
+            cursor.execute('''
+            INSERT INTO user (id, first_name, LastName) VALUES ('{{id}}', '{{first_name}}', '{{last_name}}')
+        '''.format(id=row[0], first_name=row[1], last_name=row[2]))
+            connection.commit()
+        
+        # add one row to the Tasks table
+        cursor.execute('''
+        INSERT INTO Tasks (id, userId, description, priority, duration, done, due_date, due_time, reminder_due)
+               VALUES (?, ?, ?, ?, ?, ?)
+        ''', (1, 17, 'read', 1, 2.3, False, '2000-01-01', '13:00:00', '2000-02-05 15:00:00'))
+        connection.commit()
+        
+        # turn inserted user rows into dictionaries
+        inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
+     
+        # use fetch_all to get the rows 
+        fetched_rows = testdb.fetch_all('user')
+       
+        # compare inserted and fetched rows
+        sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
+        sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
+    
+        assert sorted_fetched_rows == sorted_inserted_rows
+    """.format(path=sqlitepath))
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_add_row_invalid_table_name(testdir, dboption):
+    """An error is raised if TestDatabase.add_row is called with an invalid table name."""
+
+    testdir.makepyfile('''
+    def test_invalid_table_name(testdb):
+        testdb.add_row('gh67ygt')
+        
+        assert True
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*gh67ygt is not a valid table name*'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_add_row_invalid_column_name(testdir, dboption):
+    """An error is raised if TestDatabase.add_row is called with an invalid table name."""
+
+    testdir.makepyfile('''
+    def test_invalid_table_name(testdb):
+        testdb.add_row('user', occupation='accountant')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*no column occupation in the table user*'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_add_row_requires_primary_key_columns(testdir, dboption):
+    """An error is raised if TestData.add_row is called without all primary key columns."""
+
+    # id missing for user table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(testdb):
+        testdb.add_row('user')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key column is missing*: id'
+    ])
+    result.assert_outcomes(failed=1)
+
+    # userId missing for Tasks table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(testdb):
+        testdb.add_row('Tasks', id=1)
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key column is missing*: userId'
+    ])
+    result.assert_outcomes(failed=1)
+
+    # id and userId missing for Tasks table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(testdb):
+        testdb.add_row('Tasks')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key columns are missing*: id, userId'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_add_row_adds_rows(testdir, dboption, sqlitepath):
+    """TestDatabase.add_row adds a row to a table."""
+
+    testdir.makepyfile("""
+    from hypothesis import given
+    import hypothesis.strategies as s
+    import sqlite3
+    
+    
+    @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
+    def test_user_content(values, testdb):
+        # add unique id to Hypothesis-generated values
+        inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
+    
+        connection = sqlite3.connect('{path}')
+        cursor = connection.cursor()
+    
+        # delete any rows (just in case)
+        cursor.execute('DELETE FROM user')
+        cursor.execute('DELETE FROM Tasks')
+        connection.commit()
+    
+        # add the Hypothesis generated data to the user table
+        for row in inserted_rows:
+            testdb.add_row('user', id=row[0], first_name=row[1], LastName=row[2])
+        
+        # turn inserted user rows into dictionaries
+        inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
+     
+        # use fetch_all to get the rows 
+        fetched_rows = testdb.fetch_all('user')
+       
+        # compare inserted and fetched rows
+        sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
+        sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
+    
+        assert sorted_fetched_rows == sorted_inserted_rows
+        assert len(testdb.fetch_all('Tasks')) == 0
+    """.format(path=sqlitepath))
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_add_row_adds_missing_columns(testdir, dboption, sqlitepath):
+    """Missing non-primary key columns are added to a new table row."""
+
+    testdir.makepyfile('''
+    import datetime
+    import sqlite3
+    
+    def test_missing_columns(testdb):
+        connection = sqlite3.connect('{path}')
+        cursor = connection.cursor()
+
+        # delete any rows (just in case)
+        cursor.execute('DELETE FROM Tasks')
+        connection.commit()
+    
+        # add a new row
+        testdb.add_row('Tasks', id=1, userId=2)
+        
+        # fetch the added row
+        fetched_row = testdb.fetch_all('Tasks')[0]
+        
+        assert type(fetched_row['priority']) is int
+        assert type(fetched_row['duration']) is float
+        assert type(fetched_row['done']) is bool
+        assert type(fetched_row['due_date']) is datetime.date
+        assert type(fetched_row['due_time']) is datetime.time
+        assert type(fetched_row['reminder_due']) is datetime.datetime
+    '''.format(path=sqlitepath))
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_add_row_persists_between_tests(testdir, dboption):
+    """A table row added with TestData.add_row is not deleted after a test."""
+
+    testdir.makepyfile('''
+    def test_add_row_persists_part_one(testdb):
+        # no rows in user table yet
+        assert len(testdb.fetch_all('user')) == 0
+        
+        # add a row
+        testdb.add_row('user', id=1)
+        
+        # yup, there is a row now
+        assert len(testdb.fetch_all('user')) == 1
+    
+    def test_add_row_persists_part_two(testdb):
+        # there still is the row from the previous test
+        assert len(testdb.fetch_all('user')) == 1
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=2)
+
+
+def test_testdb_starts_from_clean_slate(testdir, populate, dboption, sqlitepath):
+    """The testdb fixture removes all table rows."""
+
+    populate()
+    assert _row_count(sqlitepath, 'user') > 0
+    assert _row_count(sqlitepath, 'Tasks') > 0
+
+    testdir.makepyfile('''
+    def test_testdb(testdb):
+        assert True
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    print(result.stdout.str())
+    print(result.stderr.str())
+
+    assert _row_count(sqlitepath, 'user') == 0
+    assert _row_count(sqlitepath, 'Tasks') == 0
+
+
+# def test_addrow_available(testdir):
+#     """pytest makes the addrow fixture available, and its value is a function."""
+#
+#     testdir.makepyfile('''
+#     def test_addrow(addrow):
+#         assert callable(addrow)
+#     ''')
+#
+#     result = testdir.runpytest('--db-uri="..."')
+#
+#     result.assert_outcomes(passed=1)
+#
+#
+# def test_cleantable_available(testdir):
+#     """pytest makes the addrow fixture available, and its value is a function."""
+#
+#     testdir.makepyfile('''
+#     def test_cleantable(cleantable):
+#         assert callable(cleantable)
+#     ''')
+#
+#     result = testdir.runpytest('--db-uri="..."')
+#
+#     result.assert_outcomes(passed=1)
+#
+#
+# def test_option_required(testdir):
+#     """pytest must be called with the --db-uri option if the testdb fixture is used."""
+#
+#     testdir.makepyfile('''
+#     def test_testdb_used(testdb):
+#         assert True
+#     ''')
+#
+#     result = testdir.runpytest()
+#
+#     result.stderr.fnmatch_lines([
+#         'E*called with the --db-uri option*'
+#     ])
+#
+#     result.assert_outcomes(error=1)
 
 
 def _row_count(db_path, table):

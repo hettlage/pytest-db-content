@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
+from datetime import datetime, date, time
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import class_mapper, sessionmaker
 
 
 # This will be the SQLAlchemy Session class. It will be set by the testdb fixture.
-Session = None
+SessionClass = None
 
 # This will be the dictionary of automapped SQLAlchemy ORM classes. It will be set by the testdb fixture.
 orm_classes = None
@@ -66,38 +68,208 @@ def testdb(pytestconfig):
     global orm_classes
     orm_classes = Base.classes
 
-    global Session
-    Session = sessionmaker(bind=engine)
+    global SessionClass
+    SessionClass = sessionmaker(bind=engine)
 
-    _clean_database()
+    # _clean_database()
 
-    yield db_uri
-
-
-@pytest.fixture()
-def addrow():
-    def _addrow():
-        return '42'
-
-    yield _addrow
+    yield TestDatabase(db_uri, SessionClass, orm_classes)
 
 
-@pytest.fixture()
-def cleantable():
-    def _cleantable():
-        return '42'
+# def _clean_database():
+#     """
+#     Remove all the rows from all the tables in the test database.
+#
+#     """
+#
+#     session = Session()
+#     for orm_class in orm_classes.values():
+#         query = session.query(orm_class)
+#         query.delete()
+#         session.commit()
 
-    yield _cleantable
 
-
-def _clean_database():
+class TestDatabase:
     """
-    Remove all the rows from all the tables in the test database.
+    Access to the test database used by the testdb fixture.
+
+    Parameters:
+    -------
+    database_uri : str
+        The URI of the test database.
+
+    Session : class
+        The class used for creating SQLAlchemy database sessions.
+
+    orm_classes : dict like
+        A dictionary-like object of table names and corresponding SQLAlchemy ORM classes.
 
     """
 
-    session = Session()
-    for orm_class in orm_classes.values():
-        query = session.query(orm_class)
-        query.delete()
-        session.commit()
+    def __init__(self, database_uri, Session, orm_classes):
+        self._database_uri = database_uri
+        self.Session = Session
+        self.orm_classes = orm_classes
+
+
+    @property
+    def database_uri(self):
+        """
+        The database URI, in a format understood by SQLAlchemy.
+
+        Returns
+        -------
+        uri : str
+            The database URI.
+
+        """
+
+        return self._database_uri
+
+    def fetch_all(self, table):
+        """
+        Fetch all rows from a table.
+
+        The table rows are returned as a list of dictionaries, where each dictionary consists of the column names and
+        values for a row. The order of the dictionaries in this list is undefined and must not be relied on.
+
+        The `table` parameter must be the name of an existing table.
+
+        For example, assume a table Book has the following content.
+
+        ====  ========  =======
+        id    item      price
+        ====  ========  =======
+        1     ball      15.30
+        2     book      21.00
+        3     bottle    11.32
+        ====  ========  =======
+
+        Then `fetch_all('Book')` returns the a list of dictionaries `{'id': 1, 'item': 'ball', 'price': 15.30}`,
+        `{'id': 2, 'item': 'book', 'price': 21.00}` and `{'id': 3, 'item': 'bottle', 'price': 11.32}`, in any order.
+
+        Parameters:
+        -----------
+        table : str
+            The name of the table whose rows are fetched.
+
+        Returns
+        -------
+        rows : list of dict
+            All the table rows as dictionaries of column names abd values.
+
+        """
+
+        if table not in self.orm_classes:
+            raise ValueError('{} is not a valid table name.'.format(table))
+
+        session = self.Session()
+        orm_class = self.orm_classes[table]
+
+        column_names = class_mapper(orm_class).columns.keys()
+
+        return [{column: getattr(o, column) for column in column_names} for o in session.query(orm_class)]
+
+    def add_row(self, table, **kwargs):
+        """
+        Add a row to a table in the test database.
+
+        This function expects the name ofd the table as the first parameter. All other parameters must be column names
+        of that table, and the parameter values are taken as the corresponding column values.
+
+        If a non-primary key column name is not included in the parameters the data type of the column is used to make
+        a judicious guess as to what should be an appropriate value, and that value is assigned. These values are not
+        random, and the same value may be re-used several times. Hence you should not omit columns which have, or form
+        part of, a uniqueness constraint.
+
+        All primary key columns must be included among the parameters, a failure to do results in an error.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table to which the row is added.
+        kwargs : keyword arguments
+            The column values for the added row.
+
+        """
+
+        _add_row(table, kwargs, self.orm_classes, self.Session())
+
+
+def _add_row(table, column_values, orm_classes, session):
+    """
+    Add a row to a table.
+
+    See the documentation of TestDatabase.add_row or of the tmprow fixture for more details.
+
+    Parameters
+    ----------
+    table : str
+        The name of the table to which the row is added.
+    column_values : dict
+        A dictionary of column names and values.
+    orm_classes : dict-like
+        The table names and corresponding SQLAlchemy ORM classes.
+    session : Session
+        The SQLAlchemy session to use.
+
+    """
+
+    # check that the table name exists
+    if table not in orm_classes:
+        raise ValueError('{} is not a valid table name.'.format(table))
+
+    # copy the given column values, as we might have to modify the dictionary
+    columns = {key: column_values[key] for key in column_values}
+
+    # check that all column names actually exist
+    orm_class = orm_classes[table]
+    table_column_names = class_mapper(orm_class).columns.keys()
+    for column_name in columns:
+        if column_name not in table_column_names:
+            raise ValueError('There is no column {column} in the table {table}'.format(column=column_name, table=table))
+
+    # add missing columns (other than primary keys)
+    primary_keys = [primary_key.name for primary_key in inspect(orm_class).primary_key]
+    missing_primary_keys = []
+    for column_name in table_column_names:
+        if column_name not in columns:
+            if column_name not in primary_keys:
+                columns[column_name] = _default_value(orm_class, column_name)
+            else:
+                missing_primary_keys.append(column_name)
+
+    # no primary key must be missing
+    if len(missing_primary_keys) > 0:
+        if len(missing_primary_keys) == 1:
+            error = 'The following primary key column is missing: '
+        else:
+            error = 'The following primary key columns are missing: '
+        error += ', '.join(sorted(missing_primary_keys))
+        raise ValueError(error)
+
+    # create the table row
+    row = orm_class(**columns)
+    session.add(row)
+    session.commit()
+
+
+def _default_value(orm_class, column_name):
+    python_type = inspect(orm_class).columns[column_name].type.python_type
+
+    if python_type is bool:
+        return False
+
+    if python_type in [int, float]:
+        return 1
+
+    if python_type is datetime:
+        return datetime(2000, 1, 1, 0, 0, 0, 0)
+
+    if python_type is date:
+        return date(2000, 1, 1)
+
+    if python_type is time:
+        return time(0, 0, 0, 0)
+
+    return 'A'

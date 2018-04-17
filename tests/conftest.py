@@ -27,7 +27,7 @@ def sqlitedb(tmpdir):
 
     """
 
-    sqlite_file = str(tmpdir.join('test.sqlite3'))
+    sqlite_file = str(tmpdir.join('tasks__TEST__.sqlite3'))
 
     connection = sqlite3.connect(sqlite_file)
 
@@ -41,6 +41,9 @@ CREATE TABLE user (id INTEGER PRIMARY KEY,
 CREATE TABLE Tasks (id INTEGER NOT NULL,
                    userId INTEGER NOT NULL,
                    description TEXT NOT NULL,
+                   priority INTEGER NOT NULL,
+                   duration FLOAT NOT NULL,
+                   done BOOLEAN NOT NULL,
                    due_date DATE NOT NULL,
                    due_time TIME NOT NULL,
                    reminder_due DATETIME NOT NULL,
@@ -159,7 +162,7 @@ INSERT INTO user (id, first_name, LastName)
        VALUES (2, 'Albert', 'Einstein')
     ''')
     cursor.execute('''
-INSERT INTO Tasks (id, userId, description, due_date, due_time, reminder_due)
-       VALUES (1, 23, 'read book', '2018-04-22', '17:13:08', '2018-04-24 12:00:00')
+INSERT INTO Tasks (id, userId, description, priority, duration, done, due_date, due_time, reminder_due)
+       VALUES (1, 23, 'read book', 2, 5.5, True, '2018-04-22', '17:13:08', '2018-04-24 12:00:00')
     ''')
     connection.commit()
