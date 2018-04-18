@@ -163,6 +163,6 @@ INSERT INTO user (id, first_name, LastName)
     ''')
     cursor.execute('''
 INSERT INTO Tasks (id, userId, description, priority, duration, done, due_date, due_time, reminder_due)
-       VALUES (1, 23, 'read book', 2, 5.5, True, '2018-04-22', '17:13:08', '2018-04-24 12:00:00')
+       VALUES (1, 23, 'read book', 2, 5.5, 1, '2018-04-22', '17:13:08', '2018-04-24 12:00:00')
     ''')
     connection.commit()

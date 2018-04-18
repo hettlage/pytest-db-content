@@ -2,7 +2,9 @@ import os
 import sqlite3
 import pytest
 
+
 # command line option
+
 
 def test_help_message(testdir):
     """pytest's help message includes the --db-uri option."""
@@ -89,16 +91,13 @@ def test_testdb_starts_from_clean_slate(testdir, populate, dboption, sqlitepath)
 
     testdir.makepyfile('''
     def test_testdb(testdb):
-        assert True
+        assert len(testdb.fetch_all('user')) == 0
+        assert len(testdb.fetch_all('Tasks')) == 0
     ''')
 
     result = testdir.runpytest(dboption)
 
-    print(result.stdout.str())
-    print(result.stderr.str())
-
-    assert _row_count(sqlitepath, 'user') == 0
-    assert _row_count(sqlitepath, 'Tasks') == 0
+    result.assert_outcomes(passed=1)
 
 
 # TestDatabase.database_uri
@@ -168,8 +167,8 @@ def test_fetch_all_returns_rows(testdir, dboption, sqlitepath):
         # add one row to the Tasks table
         cursor.execute('''
         INSERT INTO Tasks (id, userId, description, priority, duration, done, due_date, due_time, reminder_due)
-               VALUES (?, ?, ?, ?, ?, ?)
-        ''', (1, 17, 'read', 1, 2.3, False, '2000-01-01', '13:00:00', '2000-02-05 15:00:00'))
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (1, 17, 'read', 1, 2.3, 0, '2000-01-01', '13:00:00', '2000-02-05 15:00:00'))
         connection.commit()
         
         # turn inserted user rows into dictionaries
@@ -188,6 +187,9 @@ def test_fetch_all_returns_rows(testdir, dboption, sqlitepath):
     result = testdir.runpytest(dboption)
 
     result.assert_outcomes(passed=1)
+
+
+# TestData.add_row
 
 
 def test_add_row_invalid_table_name(testdir, dboption):
@@ -462,47 +464,203 @@ def test_clean_removes_all_rows_in_all_tables(testdir, dboption):
     result.assert_outcomes(passed=1)
 
 
-# def test_addrow_available(testdir):
-#     """pytest makes the addrow fixture available, and its value is a function."""
-#
-#     testdir.makepyfile('''
-#     def test_addrow(addrow):
-#         assert callable(addrow)
-#     ''')
-#
-#     result = testdir.runpytest('--db-uri="..."')
-#
-#     result.assert_outcomes(passed=1)
-#
-#
-# def test_cleantable_available(testdir):
-#     """pytest makes the addrow fixture available, and its value is a function."""
-#
-#     testdir.makepyfile('''
-#     def test_cleantable(cleantable):
-#         assert callable(cleantable)
-#     ''')
-#
-#     result = testdir.runpytest('--db-uri="..."')
-#
-#     result.assert_outcomes(passed=1)
-#
-#
-# def test_option_required(testdir):
-#     """pytest must be called with the --db-uri option if the testdb fixture is used."""
-#
-#     testdir.makepyfile('''
-#     def test_testdb_used(testdb):
-#         assert True
-#     ''')
-#
-#     result = testdir.runpytest()
-#
-#     result.stderr.fnmatch_lines([
-#         'E*called with the --db-uri option*'
-#     ])
-#
-#     result.assert_outcomes(error=1)
+# tmprow
+
+
+def test_tmprow_invalid_table_name(testdir, dboption):
+    """An error is raised if tmprow is called with an invalid table name."""
+
+    testdir.makepyfile('''
+    def test_invalid_table_name(tmprow):
+        tmprow('gh67ygt')
+        
+        assert True
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*gh67ygt is not a valid table name*'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_tmprow_invalid_column_name(testdir, dboption):
+    """An error is raised if tmprow is called with an invalid table name."""
+
+    testdir.makepyfile('''
+    def test_invalid_table_name(tmprow):
+        tmprow('user', occupation='accountant')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*no column occupation in the table user*'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_tmprow_requires_primary_key_columns(testdir, dboption):
+    """An error is raised if tmprow is called without all primary key columns."""
+
+    # id missing for user table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(tmprow):
+        tmprow('user')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key column is missing*: id'
+    ])
+    result.assert_outcomes(failed=1)
+
+    # userId missing for Tasks table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(tmprow):
+        tmprow('Tasks', id=1)
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key column is missing*: userId'
+    ])
+    result.assert_outcomes(failed=1)
+
+    # id and userId missing for Tasks table
+
+    testdir.makepyfile('''
+    def test_one_primary_key_missing(tmprow):
+        tmprow('Tasks')
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.stdout.fnmatch_lines([
+        'E*following primary key columns are missing*: id, userId'
+    ])
+    result.assert_outcomes(failed=1)
+
+
+def test_tmprow_adds_rows(testdir, dboption, sqlitepath):
+    """tmprow adds a row to a table."""
+
+    testdir.makepyfile("""
+    from hypothesis import given
+    import hypothesis.strategies as s
+    import sqlite3
+    
+    offset = 0
+    
+    @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
+    def test_user_content(values, testdb, tmprow):
+        # add unique id to Hypothesis-generated values
+        global offset
+        inserted_rows = [(offset + index + 1, row[0], row[1]) for index, row in enumerate(values)]
+
+        # re-using the same primary key causes issues with SQLAlchemy's delete method;
+        # hence we ensure unique primary key values across all tests
+        offset += len(inserted_rows)
+    
+        connection = sqlite3.connect('{path}')
+        cursor = connection.cursor()
+    
+        # delete any rows (just in case)
+        cursor.execute('DELETE FROM user')
+        cursor.execute('DELETE FROM Tasks')
+        connection.commit()
+    
+        # add the Hypothesis generated data to the user table
+        for row in inserted_rows:
+            tmprow('user', id=row[0], first_name=row[1], LastName=row[2])
+        
+        # turn inserted user rows into dictionaries
+        inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
+     
+        # use fetch_all to get the rows 
+        fetched_rows = testdb.fetch_all('user')
+       
+        # compare inserted and fetched rows
+        sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
+        sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
+    
+        assert sorted_fetched_rows == sorted_inserted_rows
+        assert len(testdb.fetch_all('Tasks')) == 0
+    """.format(path=sqlitepath))
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_tmprow_adds_missing_columns(testdir, dboption, sqlitepath):
+    """tmprow adds missing non-primary key columns to a new table row."""
+
+    testdir.makepyfile('''
+    import datetime
+    import sqlite3
+    
+    def test_missing_columns(testdb, tmprow):
+        connection = sqlite3.connect('{path}')
+        cursor = connection.cursor()
+
+        # delete any rows (just in case)
+        cursor.execute('DELETE FROM Tasks')
+        connection.commit()
+    
+        # add a new row
+        tmprow('Tasks', id=1, userId=2)
+        
+        # fetch the added row
+        fetched_row = testdb.fetch_all('Tasks')[0]
+        
+        assert type(fetched_row['priority']) is int
+        assert type(fetched_row['duration']) is float
+        assert type(fetched_row['done']) is bool
+        assert type(fetched_row['due_date']) is datetime.date
+        assert type(fetched_row['due_time']) is datetime.time
+        assert type(fetched_row['reminder_due']) is datetime.datetime
+    '''.format(path=sqlitepath))
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_tmprow_does_not_persist_between_tests(testdir, dboption):
+    """A table row added with tmprow is not deleted after a test."""
+
+    testdir.makepyfile('''
+    def test_tmprow_does_not_persist_part_one(testdb, tmprow):
+        # no rows in user table yet
+        assert len(testdb.fetch_all('user')) == 0
+        
+        # add a row which will persist between tests
+        testdb.add_row('user', id=42)
+
+        # add rows which will not be persisted
+        tmprow('user', id=1)
+        tmprow('user', id=2)
+        tmprow('user', id=3)
+
+        # yup, there are a four rows now
+        assert len(testdb.fetch_all('user')) == 4
+
+    def test_tmprow_does_not_part_two(testdb):
+        # there is only one row left from the previous test, and it is the one added with add_row
+        fetched_rows = testdb.fetch_all('user')
+        assert len(fetched_rows) == 1
+        assert fetched_rows[0]['id'] == 42
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=2)
 
 
 def _row_count(db_path, table):

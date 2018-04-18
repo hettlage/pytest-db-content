@@ -28,7 +28,7 @@ def pytest_addoption(parser):
 @pytest.fixture(scope='session')
 def testdb(pytestconfig):
     """
-    A fixture for connecting to the database from a clean slate.
+    A session-scoped fixture for connecting to the database from a clean slate.
 
     After the connection is established, all the rows of all the tables are deleted.
 
@@ -46,12 +46,12 @@ def testdb(pytestconfig):
     Parameters
     ----------
     pytestconfig : fixture
-        pytestconfig fixture
+        The pytestconfig fixture.
 
     Returns
     -------
-    db_uri : str
-        The database URI.
+    db_uri : TestDatabase
+        An object for accessing the test database.
 
     """
 
@@ -72,19 +72,6 @@ def testdb(pytestconfig):
     SessionClass = sessionmaker(bind=engine)
 
     yield TestDatabase(db_uri, SessionClass, orm_classes)
-
-
-# def _clean_database():
-#     """
-#     Remove all the rows from all the tables in the test database.
-#
-#     """
-#
-#     session = Session()
-#     for orm_class in orm_classes.values():
-#         query = session.query(orm_class)
-#         query.delete()
-#         session.commit()
 
 
 class TestDatabase:
@@ -174,7 +161,7 @@ class TestDatabase:
         """
         Add a row to a table in the test database.
 
-        This function expects the name ofd the table as the first parameter. All other parameters must be column names
+        This function expects the name of the table as the first parameter. All other parameters must be column names
         of that table, and the parameter values are taken as the corresponding column values.
 
         If a non-primary key column name is not included in the parameters the data type of the column is used to make
@@ -183,6 +170,9 @@ class TestDatabase:
         part of, a uniqueness constraint.
 
         All primary key columns must be included among the parameters, a failure to do results in an error.
+
+        Contrary to rows added with the `tmprow` fixture, a table row added with this method will not be deleted
+        between tests within a pytest session.
 
         Parameters
         ----------
@@ -227,6 +217,52 @@ class TestDatabase:
         session.commit()
 
 
+@pytest.fixture(scope='function')
+def tmprow(testdb):
+    """
+    A fixture for adding a temporary row to a table in the test database.
+
+    `tmprow` returns a function which expects the name of the table as the first parameter. All other parameters must
+    be column names of that table, and the parameter values are taken as the corresponding column values.
+
+    If a non-primary key column name is not included in the parameters the data type of the column is used to make
+    a judicious guess as to what should be an appropriate value, and that value is assigned. These values are not
+    random, and the same value may be re-used several times. Hence you should not omit columns which have, or form
+    part of, a uniqueness constraint.
+
+    All primary key columns must be included among the parameters, a failure to do results in an error.
+
+    Contrary to rows added with the `add_row` method of a `TestData` instance, a table row added with this method
+    will be deleted after a test function is finished.
+
+    Parameters
+    ----------
+    testdb : fixture
+        The testdb fixture.
+
+    Returns
+    -------
+    tmprow : func
+        A function for adding a table row.
+
+    """
+
+    rows = []
+    session = testdb.Session()
+
+    def _tmprow(table, **kwargs):
+        # add the row and store it, so that it can be deleted later
+        rows.append(_add_row(table, kwargs, testdb.orm_classes, session))
+
+    yield _tmprow
+
+    # delete all rows, in the reverse order of how they were added
+    # (reversing the order should take care of foreign key constraints)
+    for row in reversed(rows):
+        session.delete(row)
+    session.commit()
+
+
 def _add_row(table, column_values, orm_classes, session):
     """
     Add a row to a table.
@@ -243,6 +279,11 @@ def _add_row(table, column_values, orm_classes, session):
         The table names and corresponding SQLAlchemy ORM classes.
     session : Session
         The SQLAlchemy session to use.
+
+    Returns
+    -------
+    row : SQLAlchemy ORM object
+        An ORM object representing the new row.
 
     """
 
@@ -283,6 +324,8 @@ def _add_row(table, column_values, orm_classes, session):
     row = orm_class(**columns)
     session.add(row)
     session.commit()
+
+    return row
 
 
 def _default_value(orm_class, column_name):
