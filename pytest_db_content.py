@@ -71,8 +71,6 @@ def testdb(pytestconfig):
     global SessionClass
     SessionClass = sessionmaker(bind=engine)
 
-    # _clean_database()
-
     yield TestDatabase(db_uri, SessionClass, orm_classes)
 
 
@@ -110,6 +108,8 @@ class TestDatabase:
         self._database_uri = database_uri
         self.Session = Session
         self.orm_classes = orm_classes
+
+        self.clean()
 
 
     @property
@@ -194,6 +194,37 @@ class TestDatabase:
         """
 
         _add_row(table, kwargs, self.orm_classes, self.Session())
+
+    def clean(self, table=None):
+        """
+        Remove all rows from one or all tables.
+
+        If a valid table name is passed, the rows ofd thaty table are deleted. If no table name is passed the rows of
+        all tables are deleted.
+
+        An error is raised if an invalids table name is passed.
+
+        Parameters
+        ----------
+        table : str, optional
+            The name of the table whose rows are deleted.
+
+        """
+
+        # get the tables to clean
+        if table:
+            if table not in orm_classes:
+                raise ValueError('{} is not a valid table name.'.format(table))
+            cleaned_tables = [table]
+        else:
+            cleaned_tables = orm_classes.keys()
+
+        # delete all rows
+        session = self.Session()
+        for cleaned_table in cleaned_tables:
+            orm_class = orm_classes[cleaned_table]
+            session.query(orm_class).delete()
+        session.commit()
 
 
 def _add_row(table, column_values, orm_classes, session):

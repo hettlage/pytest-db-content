@@ -80,6 +80,30 @@ def test_error_for_invalid_db_uri(testdir):
     result.assert_outcomes(error=1)
 
 
+def test_testdb_starts_from_clean_slate(testdir, populate, dboption, sqlitepath):
+    """The testdb fixture removes all table rows."""
+
+    populate()
+    assert _row_count(sqlitepath, 'user') > 0
+    assert _row_count(sqlitepath, 'Tasks') > 0
+
+    testdir.makepyfile('''
+    def test_testdb(testdb):
+        assert True
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    print(result.stdout.str())
+    print(result.stderr.str())
+
+    assert _row_count(sqlitepath, 'user') == 0
+    assert _row_count(sqlitepath, 'Tasks') == 0
+
+
+# TestDatabase.database_uri
+
+
 def test_test_db_has_database_uri(testdir, dboption, sqlitedb):
     """The test_db fixture has a database_uri field with the database URI."""
 
@@ -91,6 +115,9 @@ def test_test_db_has_database_uri(testdir, dboption, sqlitedb):
     result = testdir.runpytest(dboption)
 
     result.assert_outcomes(passed=1)
+
+
+# TestDatabase.fetch_all
 
 
 def test_fetch_all_invalid_table_name(testdir, dboption):
@@ -346,25 +373,93 @@ def test_add_row_persists_between_tests(testdir, dboption):
     result.assert_outcomes(passed=2)
 
 
-def test_testdb_starts_from_clean_slate(testdir, populate, dboption, sqlitepath):
-    """The testdb fixture removes all table rows."""
+# TestDatabase.clean
 
-    populate()
-    assert _row_count(sqlitepath, 'user') > 0
-    assert _row_count(sqlitepath, 'Tasks') > 0
+
+def test_clean_invalid_table_name(testdir, dboption):
+    """An error is raised if clean is called with an invalid table name."""
 
     testdir.makepyfile('''
-    def test_testdb(testdb):
-        assert True
+    def test_invalid_table_name(testdb):
+        testdb.clean('zxk67hi') 
     ''')
 
     result = testdir.runpytest(dboption)
 
-    print(result.stdout.str())
-    print(result.stderr.str())
+    result.stdout.fnmatch_lines([
+        'E*zxk67hi is not a valid table name*'
+    ])
+    result.assert_outcomes(failed=1)
 
-    assert _row_count(sqlitepath, 'user') == 0
-    assert _row_count(sqlitepath, 'Tasks') == 0
+
+def test_clean_removes_all_rows_in_a_table(testdir, dboption):
+    """clean deletes all rows in a table if it is called with a table name."""
+
+    testdir.makepyfile('''
+    from hypothesis import given
+    import hypothesis.strategies as s
+
+    @given(user_count=s.integers(min_value=0, max_value=10), task_count=s.integers(min_value=0, max_value=10))
+    def test_clean_deletes_all_rows_in_a_table(user_count, task_count, testdb):
+        # testdb is not cleaned between successive tests, so we must do this ourselves
+        testdb.clean()
+        
+        # set up initial database content
+        for id in range(1, 1 + user_count):
+            testdb.add_row('user', id=id)
+        for id in range(1, 1 + task_count):
+            testdb.add_row('Tasks', id=id, userId=id)
+            
+        # check the initial content
+        assert len(testdb.fetch_all('user')) == user_count
+        assert len(testdb.fetch_all('Tasks')) == task_count
+        
+        # delete all rows from the user table
+        testdb.clean('user')
+        
+        # check the final content
+        assert len(testdb.fetch_all('user')) == 0
+        assert len(testdb.fetch_all('Tasks')) == task_count
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
+
+
+def test_clean_removes_all_rows_in_all_tables(testdir, dboption):
+    """clean deletes all rows in all tables if it is called without a table name"""
+
+    testdir.makepyfile('''
+    from hypothesis import given
+    import hypothesis.strategies as s
+
+    @given(user_count=s.integers(min_value=0, max_value=10), task_count=s.integers(min_value=0, max_value=10))
+    def test_clean_deletes_all_rows_in_a_table(user_count, task_count, testdb):
+        # testdb is not cleaned between successive tests, so we must do this ourselves
+        testdb.clean()
+        
+        # set up initial database content
+        for id in range(1, 1 + user_count):
+            testdb.add_row('user', id=id)
+        for id in range(1, 1 + task_count):
+            testdb.add_row('Tasks', id=id, userId=id)
+            
+        # check the initial content
+        assert len(testdb.fetch_all('user')) == user_count
+        assert len(testdb.fetch_all('Tasks')) == task_count
+        
+        # delete all rows from all tables
+        testdb.clean()
+        
+        # check the final content
+        assert len(testdb.fetch_all('user')) == 0
+        assert len(testdb.fetch_all('Tasks')) == 0
+    ''')
+
+    result = testdir.runpytest(dboption)
+
+    result.assert_outcomes(passed=1)
 
 
 # def test_addrow_available(testdir):
