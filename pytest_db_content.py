@@ -22,9 +22,9 @@ orm_classes = None
 def pytest_addoption(parser):
     group = parser.getgroup('db-content')
     group.addoption(
-        '--db-uri',
+        '--database-uri',
         action='store',
-        dest='db_uri',
+        dest='database_uri',
         help='URI of the test database, in a format SQLAlchemy understands'
     )
 
@@ -36,8 +36,8 @@ def testdb(pytestconfig):
 
     After the connection is established, all the rows of all the tables are deleted.
 
-    The use of this fixtures requires that pytest was called with the --db-uri command line option. The URI for the
-    database must be in a format SQLAlchemy understands. Example of valid URIs are
+    The use of this fixtures requires that pytest was called with the --database-uri command line option. The URI for
+    the database must be in a format SQLAlchemy understands. Example of valid URIs are
 
     `sqlite:///path/to/observations.sqlite3`
 
@@ -54,18 +54,18 @@ def testdb(pytestconfig):
 
     Returns
     -------
-    db_uri : TestDatabase
+    database_uri : TestDatabase
         An object for accessing the test database.
 
     """
 
-    db_uri = pytestconfig.getoption('db_uri', None)
-    if not db_uri:
-        raise ValueError('The db-content plugin requires the --db-uri command line option.')
-    if '__TEST__' not in db_uri:
-        raise ValueError('The database URI passed with the --db-uri command line option must include the string \'__TEST__\'')
+    database_uri = pytestconfig.getoption('database_uri', None)
+    if not database_uri:
+        raise ValueError('The db-content plugin requires the --database-uri command line option.')
+    if '__TEST__' not in database_uri:
+        raise ValueError('The database URI passed with the --database-uri command line option must include the string \'__TEST__\'')
 
-    engine = create_engine(db_uri)
+    engine = create_engine(database_uri)
 
     Base = automap_base()
     Base.prepare(engine, reflect=True)
@@ -75,7 +75,7 @@ def testdb(pytestconfig):
     global SessionClass
     SessionClass = sessionmaker(bind=engine)
 
-    yield TestDatabase(db_uri, SessionClass, orm_classes)
+    yield TestDatabase(database_uri, SessionClass, orm_classes)
 
 
 class TestDatabase:

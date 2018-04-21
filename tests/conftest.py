@@ -22,7 +22,7 @@ def sqlitedb(tmpdir):
     Returns
     -------
 
-    db_uri : str
+    database_uri : str
         The database URI.
 
     """
@@ -82,7 +82,7 @@ def dboption(sqlitedb):
     Fixture for returning the command line option string which needs to be passed to the pytester `runpytest` function
     in order to specify the database URI.
 
-    The option string is of the format `--db-uri=URI`, where `URI` denotes the database URI.
+    The option string is of the format `--database-uri=URI`, where `URI` denotes the database URI.
 
     Parameters
     ----------
@@ -96,7 +96,7 @@ def dboption(sqlitedb):
 
     """
 
-    return '--db-uri={}'.format(sqlitedb)
+    return '--database-uri={}'.format(sqlitedb)
 
 
 @pytest.fixture()

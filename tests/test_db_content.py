@@ -7,18 +7,18 @@ import pytest
 
 
 def test_help_message(testdir):
-    """pytest's help message includes the --db-uri option."""
+    """pytest's help message includes the --database-uri option."""
 
     result = testdir.runpytest('--help')
 
     result.stdout.fnmatch_lines([
         'db-content:',
-        '*--db-uri=DB_URI*URI of the test database*'
+        '*--database-uri=DATABASE_URI*'
     ])
 
 
-def test_require_db_uri(testdir):
-    """The testdb fixture requires the --db-uri option"""
+def test_require_database_uri(testdir):
+    """The testdb fixture requires the --database-uri option"""
 
     testdir.makepyfile('''
     def test_testdb(testdb):
@@ -28,7 +28,7 @@ def test_require_db_uri(testdir):
     result = testdir.runpytest()
 
     result.stdout.fnmatch_lines([
-        'E*The db-content plugin requires*--db-uri*'
+        'E*The db-content plugin requires*--database-uri*'
     ])
     result.assert_outcomes(error=1)
 
@@ -49,35 +49,35 @@ def test_testdb_available(testdir, dboption):
     result.assert_outcomes(passed=1)
 
 
-def test_db_uri_must_include_test(testdir):
-    """The --db-uri option must include the string '__TEST__'."""
+def test_database_uri_must_include_test(testdir):
+    """The --database-uri option must include the string '__TEST__'."""
 
     testdir.makepyfile('''
-    def test_correct_db_uri(testdb):
+    def test_correct_database_uri(testdb):
         assert True
     ''')
 
-    result = testdir.runpytest('--db-uri=sqlite:////some/path/observations.sqlite')
+    result = testdir.runpytest('--database-uri=sqlite:////some/path/observations.sqlite')
 
     result.stdout.fnmatch_lines([
-        'E*--db-uri*__TEST__*'
+        'E*--database-uri*__TEST__*'
     ])
     result.assert_outcomes(error=1)
 
 
-def test_error_for_invalid_db_uri(testdir):
+def test_error_for_invalid_database_uri(testdir):
     """There must be an error if there is a database connection error."""
 
     testdir.makepyfile('''
-    def test_db_uri(testdb):
+    def test_database_uri(testdb):
         assert True
     ''')
 
-    result = testdir.runpytest('--db-uri=whatever__TEST__')
+    result = testdir.runpytest('--database-uri=whatever__TEST__')
 
     result.assert_outcomes(error=1)
 
-    result = testdir.runpytest('--db-uri=sqlite:////path/to/observations__TEST__.chsdfyj7rt4.sqlite')
+    result = testdir.runpytest('--database-uri=sqlite:////path/to/observations__TEST__.chsdfyj7rt4.sqlite')
 
     result.assert_outcomes(error=1)
 
@@ -663,7 +663,7 @@ def _row_count(db_path, table):
 
     Parameters
     ----------
-    db_uri : str
+    database_uri : str
         The database URI.
     table : str
         The table name.

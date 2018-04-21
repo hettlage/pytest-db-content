@@ -110,7 +110,7 @@ The plugin must
 
 * Expose a `testdb` and `tmprow` fixture.
 * Add a command line option group with an option `--db-uri`.
-* Raise an error if the `--db-uri` option value does not contain the string `__TEST__`.
+* Raise an error if the `--database-uri` option value does not contain the string `__TEST__`.
 
 The `testdb` fixture must
 
