@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'pytest-db-content'
-copyright = u'2015, SALT/SAAO'
+copyright = u'2018, SALT/SAAO'
 author = u'SALT/SAAO'
 
 # The version info for the project you're documenting, acts as replacement for
