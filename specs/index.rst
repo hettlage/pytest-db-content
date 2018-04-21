@@ -25,7 +25,7 @@ testdb
 
 The `testdb` fixture, which is session scoped, creates a database connection and deletes the rows of all database tables when it is called. All table entries are deleted again and the database connection is closed when the session is finished. The tables themselves are neither created nor dropped by the fixture
 
-The database URI must be provided as a command line option, `--db-uri`, and it must have a format understood by SQLAlchemy.
+The database URI must be provided as a command line option, `--database-uri`, and it must have a format understood by SQLAlchemy.
 
 The database URI must include the string `__TEST__`. This requirement is made in order to avoid connecting to a production database. A meaningful error must be raised if the databasename does not meet this condition.
 
@@ -109,13 +109,13 @@ Tests
 The plugin must
 
 * Expose a `testdb` and `tmprow` fixture.
-* Add a command line option group with an option `--db-uri`.
+* Add a command line option group with an option `--database-uri`.
 * Raise an error if the `--database-uri` option value does not contain the string `__TEST__`.
 
 The `testdb` fixture must
 
-* Raise an error if the `--db-uri` option has not been used.
-* Raise an error if the `--db-uri` option value does not contain the string `__TEST__`.
+* Raise an error if the `--database-uri` option has not been used.
+* Raise an error if the `--database-uri` option value does not contain the string `__TEST__`.
 * Raise an error if it cannot connect to the database.
   
 The `TestDatabase.database_uri` field must
