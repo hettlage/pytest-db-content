@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import namedtuple
 from datetime import datetime, date, time
 import pytest
 from sqlalchemy import create_engine
@@ -7,6 +8,9 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import class_mapper, sessionmaker
 
+
+# Used for storing primary keys and the SQLAlchemy ORM class for deleting a row later.
+RowInfo = namedtuple('RowInfo', ['primary_keys', 'orm_class'])
 
 # This will be the SQLAlchemy Session class. It will be set by the testdb fixture.
 SessionClass = None
@@ -247,19 +251,22 @@ def tmprow(testdb):
 
     """
 
-    rows = []
+    row_infos = []
     session = testdb.Session()
 
     def _tmprow(table, **kwargs):
         # add the row and store it, so that it can be deleted later
-        rows.append(_add_row(table, kwargs, testdb.orm_classes, session))
+        row_infos.append(_add_row(table, kwargs, testdb.orm_classes, session))
 
     yield _tmprow
 
-    # delete all rows, in the reverse order of how they were added
-    # (reversing the order should take care of foreign key constraints)
-    for row in reversed(rows):
-        session.delete(row)
+    # Delete all rows, in the reverse order to which they were added
+    # (reversing the order should take care of foreign key constraints).
+    # It would be tempting to store an ORM instance and to call delete() on that instance,
+    # rather than filtering by the primary key(s). However, the row night have been deleted
+    # already, in which case we would get an ObjectDeletedError.
+    for row_info in reversed(row_infos):
+        session.query(row_info.orm_class).filter_by(**row_info.primary_keys).delete()
     session.commit()
 
 
@@ -268,6 +275,8 @@ def _add_row(table, column_values, orm_classes, session):
     Add a row to a table.
 
     See the documentation of TestDatabase.add_row or of the tmprow fixture for more details.
+
+    The primary key column names and values of the new row are returned as a dictionary.
 
     Parameters
     ----------
@@ -282,8 +291,8 @@ def _add_row(table, column_values, orm_classes, session):
 
     Returns
     -------
-    row : SQLAlchemy ORM object
-        An ORM object representing the new row.
+    row : RowInfo
+        A RowInfo instance with the ORM class and a dictionary of primary column names and values.
 
     """
 
@@ -325,7 +334,11 @@ def _add_row(table, column_values, orm_classes, session):
     session.add(row)
     session.commit()
 
-    return row
+    # collect the row information
+    primary_key_columns = {primary_key: getattr(row, primary_key) for primary_key in primary_keys}
+    row_info = RowInfo(primary_keys=primary_key_columns, orm_class=orm_class)
+
+    return row_info
 
 
 def _default_value(orm_class, column_name):
