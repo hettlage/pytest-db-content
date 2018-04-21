@@ -555,22 +555,16 @@ def test_tmprow_adds_rows(testdir, dboption, sqlitepath):
     import hypothesis.strategies as s
     import sqlite3
     
-    offset = 0
-    
     @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
     def test_user_content(values, testdb, tmprow):
         # add unique id to Hypothesis-generated values
-        global offset
-        inserted_rows = [(offset + index + 1, row[0], row[1]) for index, row in enumerate(values)]
-
-        # re-using the same primary key causes issues with SQLAlchemy's delete method;
-        # hence we ensure unique primary key values across all tests
-        offset += len(inserted_rows)
-    
+        inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
+     
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
     
-        # delete any rows (just in case)
+        # Rows added by tmprow are deleted only *after all Hypothesis-generated values have been tested*;
+        # hence we have to manually delete any existing rows for each set of Hypothesis-generated parameters.
         cursor.execute('DELETE FROM user')
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
