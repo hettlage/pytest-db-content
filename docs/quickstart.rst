@@ -33,7 +33,7 @@ Don't add any content to the tables - it would be removed once we start testing.
 Creating the book archive library
 ---------------------------------
 
-The book archive library just consists of a class which exposes methods for adding a book, removing a book and getting the books for an author. Copy the following Python code and save it as a file `book_archive.py`.
+The book archive library just consists of a class which just exposes a method for getting all the books for a genre. Copy the following Python code and save it as a file `book_archive.py`.
 
 .. code-block:: python
 
@@ -41,7 +41,7 @@ The book archive library just consists of a class which exposes methods for addi
    
    class BookArchive:
        """
-       A simple class for archiving books.
+       A simple book archive.
    
        Parameters
        ----------
@@ -55,37 +55,7 @@ The book archive library just consists of a class which exposes methods for addi
    
        def __del__(self):
            self.connection.close()
-   
-       def add_book(self, genre, author, title, pages, publication_date):
-           """
-           Add a book to the archive.
-   
-           Parameters
-           ----------
-           genre : str
-               The name of the book genre.
-           author : str
-               The author.
-           title : str
-               The book title.
-           pages : int
-               The number of pages in the book.
-           publication_date : datetime.date
-               The date when the book was published.
-   
-           """
-   
-           cursor = self.connection.cursor()
-   
-           cursor.execute('SELECT id FROM genre WHERE genre=?', genre)
-           genre_id = cursor.fetchone()[0]
-   
-           cursor.execute('''
-   INSERT INTO book (genre_id, author, title, pages, publication_date)
-               VALUES (?, ?, ?, ?, ?)
-               ''', (genre_id, author, title, pages, publication_date))
-           self.connection.commit()
-   
+  
        def books(self, genre):
            """
            Return all the books for a genre.
@@ -97,8 +67,8 @@ The book archive library just consists of a class which exposes methods for addi
    
            Returns
            -------
-           books : list of tuple
-               A list of tuples with the column values.
+           books : list of dict
+               A list of dictionaries with the column names and values.
    
            """
    
@@ -152,6 +122,10 @@ Create a new folder `tests` and a configuration file `tests/conftest.py` with th
 
 Writing our first test
 ----------------------
+
+.. info::
+   
+   This guide is *not* about testing. To keep things simple it will not test as extensively as you normally should. Maybe worse, it will also include tests that change the environment for subsequent tests, which is something you should avoid in real life.
 
 Let's see whether pytest is happy with ourt code so far. Create a file `tests/test_book_archive.py` with the following test.
 
@@ -223,7 +197,7 @@ Add the following code to `tests/test_book_archive.py`.
    
        assert genre_count == 3
 
-We can shorten this test, though. `testdb` has a method `fetch_all`, which returns a list of tuples. Each of these tuples contains the column values of one of the table rows. `fetch_all` requires the table name as its only parameter. Here is the rewritten test.
+We can shorten this test, though. `testdb` has a method `fetch_all`, which returns a list of dictionaries of columnh names and values. `fetch_all` requires the table name as its only parameter. Here is the rewritten test.
 
 .. code-block:: python
    
@@ -234,7 +208,7 @@ We can shorten this test, though. `testdb` has a method `fetch_all`, which retur
    
        assert genre_count == 3
 
-The order in which `fetch_all` returns the rows is undefined and must not be relied on. This is one of the reasons why you probably won't use it too often for checking table content, although as the test shows it can be helpful if you only need to check the number of rows (or maybe just have one row in the table).
+The order in which `fetch_all` returns the rows is undefined and must not be relied on. This is one of the reasons why you probably won't use it too often for checking table content, although (as the above test shows) it can be helpful if you only need to check the number of rows (or maybe just have one row in the table).
 
 `testdb` also has a `clean` method, which removes all rows from one table or all tables, depending on whether you pass a table name it. Let's write a test to see it in action. This must come *after* the test functions we've previously written.
 
@@ -289,3 +263,151 @@ For example, we can replace the first two `add_row` calls in the above ewith the
 The tmprow fixture
 ------------------
 
+As the `testdb` fixture is session-scoped, so is its `add_row` method. Any rows you add with it will remain in the database until the end of all tests (unless you remove yourself before). While this may be of use for lookup tables, it usually is more convenient to remove added rows after a specific test function has finished. Test functions should start from well-defined (read: empty) table content.
+
+This potential short-coming is addressed by the `tmprow` fixture. This works exactly as `add_row`, but it is function-scoped and any rows it adds are removed once a test function is done. You can see it in action by adding the following tests at the end `tests/test_book_archive.py`.
+
+.. code-block:: python
+   
+   def test_persistent_or_temporary_part_1(testdb, tmprow):
+    """add_row and tmprow add rows to a table."""
+   
+       # start from a clean slate
+       testdb.clean('book')
+   
+       # add some books
+       testdb.add_row('book', id=1)
+       tmprow('book', id=2)
+       tmprow('book', id=3)
+       tmprow('book', id=4)
+   
+       # check the books are there now
+       assert len(testdb.fetch_all('book')) == 4
+   
+   
+   def test_persistent_or_temporary_part_2(testdb):
+       """Rows added by test_row persist between test functions, rows added by tmprow do not."""
+   
+       # there is only one book left...
+       assert len(testdb.fetch_all('book')) == 1
+   
+       # ... and it is the one added with the add_row method
+       assert testdb.fetch_all('book')[0]['id'] == 1
+
+As expected, the rows added with `tmprow` are deleted between these two tests, but the one added with `add_row` is not.
+
+A cautionary tale regarding function-scope
+------------------------------------------
+
+So far we haven't written any test for our `BookArchive` class... Let's remedy the situation by adding the following test after akll the other tests.
+
+.. code-block:: python
+   
+   import book_archive
+   
+   
+   def test_books(testdb, tmprow):
+       """The books method returns the correct books."""
+   
+       tmprow('book', id=1, genre_id=1, author='Richard Harris')
+       tmprow('book', id=2, genre_id=2, author='Stephen Hawking')
+       tmprow('book', id=3, genre_id=1, author='Zakes Mda')
+   
+       db_path = testdb.database_uri.split('sqlite:///')[1]
+       archive = book_archive.BookArchive(db_path)
+   
+       novels = archive.books('novel')
+       sorted_novels = sorted(novels, key=lambda book: book['id'])
+   
+       assert len(sorted_novels) == 2
+       assert sorted_novels[0]['author'] == 'Richard Harris'
+       assert sorted_novels[1]['author'] == 'Zakes Mda'
+
+While this works fine and seeing the test is confidence-inspiring, it would be nice to test for more than one set of authors. We can do this by turning our test into a parametrised one.
+
+.. info::
+   
+   Again, this guide is nbot about testing. In real life, you would also vary the number of books, genres etc.
+
+.. code-block:: python
+   
+   import book_archive
+   import pytest
+   
+   
+   @pytest.mark.parametrize('authors',
+                            [
+                                ('Richard Harris', 'Stephen Hawking', 'Zakes Mda'),
+                                ('Ayobami Adebayo', 'Marcus Chown', 'Chimamanda Ngozi Adichie')
+                            ])
+   def test_books(authors, testdb, tmprow):
+       """The books method returns the correct books."""
+   
+       tmprow('book', id=1, genre_id=1, author=authors[0])
+       tmprow('book', id=2, genre_id=2, author=authors[1])
+       tmprow('book', id=3, genre_id=1, author=authors[2])
+   
+       db_path = testdb.database_uri.split('sqlite:///')[1]
+       archive = book_archive.BookArchive(db_path)
+   
+       novels = archive.books('novel')
+       sorted_novels = sorted(novels, key=lambda book: book['id'])
+   
+       assert len(sorted_novels) == 2
+       assert sorted_novels[0]['author'] == authors[0]
+       assert sorted_novels[1]['author'] == authors[2]
+
+If you run pytest, the test passes without problems. But let's go one step further. Surely we should not limit ourselves to two sets of authors, we should cover edge cases like empty strings, and wec should include non-ASCII characters. Doing all this manually would be tedious and error prone. Instead we rewrite our test using `Hypothesis`, which was automatically installed when you installed `pytest-db-content`.
+
+.. code-block:: python
+   
+   import book_archive
+   from hypothesis import given
+   from hypothesis.strategies import tuples, text
+   
+   
+   @given(authors=tuples(text(max_size=50), text(max_size=50), text(max_size=50)))
+   def test_books(authors, testdb, tmprow):
+       """The books method returns the correct books."""
+   
+       tmprow('book', id=1, genre_id=1, author=authors[0])
+       tmprow('book', id=2, genre_id=2, author=authors[1])
+       tmprow('book', id=3, genre_id=1, author=authors[2])
+   
+       db_path = testdb.database_uri.split('sqlite:///')[1]
+       archive = book_archive.BookArchive(db_path)
+   
+       novels = archive.books('novel')
+       sorted_novels = sorted(novels, key=lambda book: book['id'])
+   
+       assert len(sorted_novels) == 2
+       assert sorted_novels[0]['author'] == authors[0]
+       assert sorted_novels[1]['author'] == authors[2]
+
+Running pytest this time leads to a rude awakening - the test fails. A little digging in the copious error output lets you find the error message: `UNIQUE constraint failed: book.id` The problem is that we are trying to create books with idsa that exist ijn the database already. In other words, the rows we add with `tmprow` are *not* deleted between iterations done by Hypothesis. The `tmprow` fixture is set up before the first set of authors, but is only torn down after the last set of authors.
+
+So when using Hypothesis, bear in mind that the same instance of a fixture is yused for all iterations. In our case that implies we have to do some manual cleaning up. Luckily, this is straightforward. Just replace the code
+
+.. code-block:: python
+
+       """The books method returns the correct books."""
+   
+       tmprow('book', id=1, genre_id=1, author=authors[0])
+
+with
+
+.. code-block:: python
+
+       """The books method returns the correct books."""
+   
+       testdb.clean('book')
+       tmprow('book', id=1, genre_id=1, author=authors[0])
+
+After this change the test passes again.
+
+What about real databases?
+--------------------------
+
+This quickstart guiode used a very simple SQLite database. Real databases can of course be much more complex. In particular, they might have foreign keys. These are of course crucial for ensuring database integrity, but they asre bad news for testing. Having to satisfy foreign key constraints can become onerous, and foreign keys may very well mean that SQLAlchemy's automapping functionality breaks down, so that pytest-db-content won't work.
+
+For these reasons pytest-db-content ships with a script `create-test-database` which lets you create a test database free of foreign keys from a production database. Explaining this script is beyond the scope ofr this guide, but you may find more details in the Advanced section.
