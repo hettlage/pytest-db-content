@@ -1,7 +1,7 @@
 Quickstart
 ==========
 
-This quickstart uses a simple library for archiving books to illustrate how pytest-db-content can be used to facilitate tests that need a database. It assumes that you have already installed the pytest-db-content package.
+This quickstart guide uses a simple library for archiving books to illustrate how pytest-db-content can be used to facilitate tests that need a database. It assumes that you have already :doc:`installed <installation>` the pytest-db-content package.
 
 Setting up the database
 -----------------------
@@ -123,7 +123,7 @@ Create a new folder `tests` and a configuration file `tests/conftest.py` with th
 Writing our first test
 ----------------------
 
-.. info::
+.. note::
    
    This guide is *not* about testing. To keep things simple it will not test as extensively as you normally should. Maybe worse, it will also include tests that change the environment for subsequent tests, which is something you should avoid in real life.
 
@@ -197,7 +197,7 @@ Add the following code to `tests/test_book_archive.py`.
    
        assert genre_count == 3
 
-We can shorten this test, though. `testdb` has a method `fetch_all`, which returns a list of dictionaries of columnh names and values. `fetch_all` requires the table name as its only parameter. Here is the rewritten test.
+We can shorten this test, though. `testdb` has a method `fetch_all`, which returns a list of dictionaries of column names and values. `fetch_all` requires the table name as its only parameter. Here is the rewritten test.
 
 .. code-block:: python
    
@@ -299,7 +299,7 @@ As expected, the rows added with `tmprow` are deleted between these two tests, b
 A cautionary tale regarding function-scope
 ------------------------------------------
 
-So far we haven't written any test for our `BookArchive` class... Let's remedy the situation by adding the following test after akll the other tests.
+So far we haven't written any test for our `BookArchive` class... Let's remedy the situation by adding the following test after all the other tests.
 
 .. code-block:: python
    
@@ -325,9 +325,9 @@ So far we haven't written any test for our `BookArchive` class... Let's remedy t
 
 While this works fine and seeing the test is confidence-inspiring, it would be nice to test for more than one set of authors. We can do this by turning our test into a parametrised one.
 
-.. info::
+.. note::
    
-   Again, this guide is nbot about testing. In real life, you would also vary the number of books, genres etc.
+   Again, this guide is not about testing. In real life, you would also vary the number of books, genres etc.
 
 .. code-block:: python
    
@@ -357,7 +357,7 @@ While this works fine and seeing the test is confidence-inspiring, it would be n
        assert sorted_novels[0]['author'] == authors[0]
        assert sorted_novels[1]['author'] == authors[2]
 
-If you run pytest, the test passes without problems. But let's go one step further. Surely we should not limit ourselves to two sets of authors, we should cover edge cases like empty strings, and wec should include non-ASCII characters. Doing all this manually would be tedious and error prone. Instead we rewrite our test using `Hypothesis`, which was automatically installed when you installed `pytest-db-content`.
+If you run pytest, the test passes without problems. But let's go one step further. Surely we should not limit ourselves to two sets of authors, we should cover edge cases like empty strings, and we should include non-ASCII characters. Doing all this manually would be tedious and error prone. Instead we rewrite our test using `Hypothesis <https://hypothesis.readthedocs.io/>`_, which was automatically installed when you installed `pytest-db-content`.
 
 .. code-block:: python
    
@@ -384,9 +384,9 @@ If you run pytest, the test passes without problems. But let's go one step furth
        assert sorted_novels[0]['author'] == authors[0]
        assert sorted_novels[1]['author'] == authors[2]
 
-Running pytest this time leads to a rude awakening - the test fails. A little digging in the copious error output lets you find the error message: `UNIQUE constraint failed: book.id` The problem is that we are trying to create books with idsa that exist ijn the database already. In other words, the rows we add with `tmprow` are *not* deleted between iterations done by Hypothesis. The `tmprow` fixture is set up before the first set of authors, but is only torn down after the last set of authors.
+Running pytest this time leads to a rude awakening - the test fails. A little digging in the copious error output lets you find the error message: `UNIQUE constraint failed: book.id` The problem is that we are trying to create books with ids that exist in the database already. In other words, the rows we add with `tmprow` are *not* deleted between iterations done by Hypothesis. The `tmprow` fixture is set up before the first set of authors, but is only torn down after the last set of authors.
 
-So when using Hypothesis, bear in mind that the same instance of a fixture is yused for all iterations. In our case that implies we have to do some manual cleaning up. Luckily, this is straightforward. Just replace the code
+So when using Hypothesis, bear in mind that the same instance of a fixture is used for all iterations. In our case that implies we have to do some manual cleaning up. Luckily, this is straightforward. Just replace the code
 
 .. code-block:: python
 
@@ -408,6 +408,6 @@ After this change the test passes again.
 What about real databases?
 --------------------------
 
-This quickstart guiode used a very simple SQLite database. Real databases can of course be much more complex. In particular, they might have foreign keys. These are of course crucial for ensuring database integrity, but they asre bad news for testing. Having to satisfy foreign key constraints can become onerous, and foreign keys may very well mean that SQLAlchemy's automapping functionality breaks down, so that pytest-db-content won't work.
+This quickstart guide used a very simple SQLite database. Real databases can of course be much more complex. In particular, they might have foreign keys. These are of course crucial for ensuring database integrity, but they asre bad news for testing. Having to satisfy foreign key constraints can become onerous, and foreign keys may very well mean that SQLAlchemy's automapping functionality breaks down, so that pytest-db-content won't work.
 
-For these reasons pytest-db-content ships with a script `create-test-database` which lets you create a test database free of foreign keys from a production database. Explaining this script is beyond the scope ofr this guide, but you may find more details in the Advanced section.
+For these reasons pytest-db-content ships with a script `create-test-database` which lets you create a test database free of foreign keys from a production database. Explaining this script is beyond the scope of this guide, but you may find more details in the :doc:`Advanced <advanced>` section.
