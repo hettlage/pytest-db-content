@@ -13,7 +13,7 @@ This can be problematic, in particular if there are many tables in the database.
 
 To do this manually would be a tedious and error-prone task. The pytest-db-content package aims to provide a solution which mames this task as straightforward as possible while still maintaining maximum flexibility.
 
-*Disclaimer:* The command `create-test-db` mentioned below is solely provided for convenience, and while it is discussed in this specification, it does not form part of it.
+*Disclaimer:* The command `create-test-database` mentioned below is solely provided for convenience, and while it is discussed in this specification, it does not form part of it.
 
 Conceptual Solution
 -------------------
@@ -78,10 +78,10 @@ A meaningful error must also be raised if an invalid tablename or column name is
 
 `tmprow` uses the `testdb` fixture, so there is no need to explicitly include the latter if you only need to add temporary rows.
 
-create-test-db
-++++++++++++++
+create-test-database
+++++++++++++++++++++
 
-The `create-test-db` command creates a new MySQL database and adds the table structure of another MySQL database to it. It then removes all foreign key constraints for the newly created tables.       
+The `create-test-database` command creates a new MySQL database and adds the table structure of another MySQL database to it. It then removes all foreign key constraints for the newly created tables.       
 
 The command has the following command line options.
 
@@ -186,7 +186,7 @@ The SQLAlchemy object for the new row is stored in an internal list.
 
 After a test is concluded, all entries of this internal list are deleted from the database, starting from the row last added.
 
-create-test-db
-++++++++++++++
+create-test-database
+++++++++++++++++++++
 
 `mysqldump` is used to export the table structure without data, and `sed` is used to remove all DEFINER clauses. `mysql` is used to create the new database and then to import the table structure. Finally, all foreign keys are removed from the tables.
