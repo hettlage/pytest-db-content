@@ -357,7 +357,13 @@ While this works fine and seeing the test is confidence-inspiring, it would be n
        assert sorted_novels[0]['author'] == authors[0]
        assert sorted_novels[1]['author'] == authors[2]
 
-If you run pytest, the test passes without problems. But let's go one step further. Surely we should not limit ourselves to two sets of authors, we should cover edge cases like empty strings, and we should include non-ASCII characters. Doing all this manually would be tedious and error prone. Instead we rewrite our test using `Hypothesis <https://hypothesis.readthedocs.io/>`_, which was automatically installed when you installed `pytest-db-content`.
+If you run pytest, the test passes without problems. But let's go one step further. Surely we should not limit ourselves to two sets of authors, we should cover edge cases like empty strings, and we should include non-ASCII characters. Doing all this manually would be tedious and error prone, and using `Hypothesis <https://hypothesis.readthedocs.io/>`_ is the better option. You might have to install this first.
+
+.. code-block:: bash
+   
+   pip install hypothesis
+
+We can now rewrite our test.
 
 .. code-block:: python
    
