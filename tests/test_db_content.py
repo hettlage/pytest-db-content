@@ -140,45 +140,45 @@ def test_fetch_all_returns_rows(testdir, dboption, sqlitepath):
     from hypothesis import given
     import hypothesis.strategies as s
     import sqlite3
-    
-    
+
+
     @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
     def test_user_content(values, testdb):
         # add unique id to Hypothesis-generated values
         inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
-    
+
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
-    
+
         # delete any rows (just in case)
         cursor.execute('DELETE FROM user')
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
-    
+
         # add the Hypothesis generated data to the user table
         for row in inserted_rows:
             cursor.execute('''
             INSERT INTO user (id, first_name, LastName) VALUES ('{{id}}', '{{first_name}}', '{{last_name}}')
         '''.format(id=row[0], first_name=row[1], last_name=row[2]))
             connection.commit()
-        
+
         # add one row to the Tasks table
         cursor.execute('''
         INSERT INTO Tasks (id, userId, description, priority, duration, done, due_date, due_time, reminder_due)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (1, 17, 'read', 1, 2.3, 0, '2000-01-01', '13:00:00', '2000-02-05 15:00:00'))
         connection.commit()
-        
+
         # turn inserted user rows into dictionaries
         inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
-     
-        # use fetch_all to get the rows 
+
+        # use fetch_all to get the rows
         fetched_rows = testdb.fetch_all('user')
-       
+
         # compare inserted and fetched rows
         sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
         sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
-    
+
         assert sorted_fetched_rows == sorted_inserted_rows
     """.format(path=sqlitepath))
 
@@ -196,7 +196,7 @@ def test_add_row_invalid_table_name(testdir, dboption):
     testdir.makepyfile('''
     def test_invalid_table_name(testdb):
         testdb.add_row('gh67ygt')
-        
+
         assert True
     ''')
 
@@ -277,35 +277,35 @@ def test_add_row_adds_rows(testdir, dboption, sqlitepath):
     from hypothesis import given
     import hypothesis.strategies as s
     import sqlite3
-    
-    
+
+
     @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
     def test_user_content(values, testdb):
         # add unique id to Hypothesis-generated values
         inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
-    
+
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
-    
+
         # delete any rows (just in case)
         cursor.execute('DELETE FROM user')
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
-    
+
         # add the Hypothesis generated data to the user table
         for row in inserted_rows:
             testdb.add_row('user', id=row[0], first_name=row[1], LastName=row[2])
-        
+
         # turn inserted user rows into dictionaries
         inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
-     
-        # use fetch_all to get the rows 
+
+        # use fetch_all to get the rows
         fetched_rows = testdb.fetch_all('user')
-       
+
         # compare inserted and fetched rows
         sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
         sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
-    
+
         assert sorted_fetched_rows == sorted_inserted_rows
         assert len(testdb.fetch_all('Tasks')) == 0
     """.format(path=sqlitepath))
@@ -321,7 +321,7 @@ def test_add_row_adds_missing_columns(testdir, dboption, sqlitepath):
     testdir.makepyfile('''
     import datetime
     import sqlite3
-    
+
     def test_missing_columns(testdb):
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
@@ -329,13 +329,13 @@ def test_add_row_adds_missing_columns(testdir, dboption, sqlitepath):
         # delete any rows (just in case)
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
-    
+
         # add a new row
         testdb.add_row('Tasks', id=1, userId=2)
-        
+
         # fetch the added row
         fetched_row = testdb.fetch_all('Tasks')[0]
-        
+
         assert type(fetched_row['priority']) is int
         assert type(fetched_row['duration']) is float
         assert type(fetched_row['done']) is bool
@@ -356,13 +356,13 @@ def test_add_row_persists_between_tests(testdir, dboption):
     def test_add_row_persists_part_one(testdb):
         # no rows in user table yet
         assert len(testdb.fetch_all('user')) == 0
-        
+
         # add a row
         testdb.add_row('user', id=1)
-        
+
         # yup, there is a row now
         assert len(testdb.fetch_all('user')) == 1
-    
+
     def test_add_row_persists_part_two(testdb):
         # there still is the row from the previous test
         assert len(testdb.fetch_all('user')) == 1
@@ -381,7 +381,7 @@ def test_clean_invalid_table_name(testdir, dboption):
 
     testdir.makepyfile('''
     def test_invalid_table_name(testdb):
-        testdb.clean('zxk67hi') 
+        testdb.clean('zxk67hi')
     ''')
 
     result = testdir.runpytest(dboption)
@@ -403,20 +403,20 @@ def test_clean_removes_all_rows_in_a_table(testdir, dboption):
     def test_clean_deletes_all_rows_in_a_table(user_count, task_count, testdb):
         # testdb is not cleaned between successive tests, so we must do this ourselves
         testdb.clean()
-        
+
         # set up initial database content
         for id in range(1, 1 + user_count):
             testdb.add_row('user', id=id)
         for id in range(1, 1 + task_count):
             testdb.add_row('Tasks', id=id, userId=id)
-            
+
         # check the initial content
         assert len(testdb.fetch_all('user')) == user_count
         assert len(testdb.fetch_all('Tasks')) == task_count
-        
+
         # delete all rows from the user table
         testdb.clean('user')
-        
+
         # check the final content
         assert len(testdb.fetch_all('user')) == 0
         assert len(testdb.fetch_all('Tasks')) == task_count
@@ -438,20 +438,20 @@ def test_clean_removes_all_rows_in_all_tables(testdir, dboption):
     def test_clean_deletes_all_rows_in_a_table(user_count, task_count, testdb):
         # testdb is not cleaned between successive tests, so we must do this ourselves
         testdb.clean()
-        
+
         # set up initial database content
         for id in range(1, 1 + user_count):
             testdb.add_row('user', id=id)
         for id in range(1, 1 + task_count):
             testdb.add_row('Tasks', id=id, userId=id)
-            
+
         # check the initial content
         assert len(testdb.fetch_all('user')) == user_count
         assert len(testdb.fetch_all('Tasks')) == task_count
-        
+
         # delete all rows from all tables
         testdb.clean()
-        
+
         # check the final content
         assert len(testdb.fetch_all('user')) == 0
         assert len(testdb.fetch_all('Tasks')) == 0
@@ -471,7 +471,7 @@ def test_tmprow_invalid_table_name(testdir, dboption):
     testdir.makepyfile('''
     def test_invalid_table_name(tmprow):
         tmprow('gh67ygt')
-        
+
         assert True
     ''')
 
@@ -552,35 +552,35 @@ def test_tmprow_adds_rows(testdir, dboption, sqlitepath):
     from hypothesis import given
     import hypothesis.strategies as s
     import sqlite3
-    
+
     @given(values=s.lists(s.tuples(s.from_regex(r'^[A-Za-z0-9]*$'), s.from_regex(r'^[A-Za-z0-9]*$'))))
     def test_user_content(values, testdb, tmprow):
         # add unique id to Hypothesis-generated values
         inserted_rows = [(index + 1, row[0], row[1]) for index, row in enumerate(values)]
-     
+
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
-    
+
         # Rows added by tmprow are deleted only *after all Hypothesis-generated values have been tested*;
         # hence we have to manually delete any existing rows for each set of Hypothesis-generated parameters.
         cursor.execute('DELETE FROM user')
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
-    
+
         # add the Hypothesis generated data to the user table
         for row in inserted_rows:
             tmprow('user', id=row[0], first_name=row[1], LastName=row[2])
-        
+
         # turn inserted user rows into dictionaries
         inserted_dicts = [{{'id': row[0], 'first_name': row[1], 'LastName': row[2]}} for row in inserted_rows]
-     
-        # use fetch_all to get the rows 
+
+        # use fetch_all to get the rows
         fetched_rows = testdb.fetch_all('user')
-       
+
         # compare inserted and fetched rows
         sorted_inserted_rows = sorted(inserted_dicts, key=lambda row: row['id'])
         sorted_fetched_rows = sorted(fetched_rows, key=lambda row: row['id'])
-    
+
         assert sorted_fetched_rows == sorted_inserted_rows
         assert len(testdb.fetch_all('Tasks')) == 0
     """.format(path=sqlitepath))
@@ -596,7 +596,7 @@ def test_tmprow_adds_missing_columns(testdir, dboption, sqlitepath):
     testdir.makepyfile('''
     import datetime
     import sqlite3
-    
+
     def test_missing_columns(testdb, tmprow):
         connection = sqlite3.connect('{path}')
         cursor = connection.cursor()
@@ -604,13 +604,13 @@ def test_tmprow_adds_missing_columns(testdir, dboption, sqlitepath):
         # delete any rows (just in case)
         cursor.execute('DELETE FROM Tasks')
         connection.commit()
-    
+
         # add a new row
         tmprow('Tasks', id=1, userId=2)
-        
+
         # fetch the added row
         fetched_row = testdb.fetch_all('Tasks')[0]
-        
+
         assert type(fetched_row['priority']) is int
         assert type(fetched_row['duration']) is float
         assert type(fetched_row['done']) is bool
@@ -631,7 +631,7 @@ def test_tmprow_does_not_persist_between_tests(testdir, dboption):
     def test_tmprow_does_not_persist_part_one(testdb, tmprow):
         # no rows in user table yet
         assert len(testdb.fetch_all('user')) == 0
-        
+
         # add a row which will persist between tests
         testdb.add_row('user', id=42)
 

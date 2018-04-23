@@ -63,7 +63,9 @@ def testdb(pytestconfig):
     if not database_uri:
         raise ValueError('The db-content plugin requires the --database-uri command line option.')
     if '__TEST__' not in database_uri:
-        raise ValueError('The database URI passed with the --database-uri command line option must include the string \'__TEST__\'')
+        raise ValueError(
+            'The database URI passed with the --database-uri command line option must include the string \'__TEST__\''
+        )
 
     engine = create_engine(database_uri)
 
@@ -101,7 +103,6 @@ class TestDatabase:
         self.orm_classes = orm_classes
 
         self.clean()
-
 
     @property
     def database_uri(self):
